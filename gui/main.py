@@ -86,7 +86,7 @@ def fuente(tamano, peso="normal"):
 # ======================================================================
 
 ventana = tk.Tk()
-ventana.title("Proyecto - Planeación curricular")
+ventana.title("Ordenamiento de Planeacion Curricular")
 
 _ancho_pantalla = ventana.winfo_screenwidth()
 _alto_pantalla = ventana.winfo_screenheight()
