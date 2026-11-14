@@ -5,7 +5,7 @@
  * (int, char*, arreglos de int) para que main.py las llame:
  *
  *   - carga / consulta de cursos      (leerArchivo + curso)
- *   - ordenamiento                    (quicksort)
+ *   - ordenamiento                    (quicksort, con prioridad a reprobadas)
  *   - materias elegibles              (u4/elegibles)
  *   - validacion de la malla          (u4/validacion: DFS, ciclos, topologico)
  *   - semestre sugerido               (semestre_sugerido + restricciones)
@@ -137,6 +137,43 @@ EXPORT int ordenar_cursos(int campo, int descendente, int *salida) {
     configurar_criterios(&criterio, 1);
 
     quicksort(copia, g_n, comparar_compuesto);
+
+    for (int k = 0; k < g_n; k++) {
+        salida[k] = copia[k].indice;
+    }
+    liberar_arreglo_cursos(copia, g_n);
+    return g_n;
+}
+
+/*
+ * Igual que ordenar_cursos, pero las materias REPROBADAS van primero
+ * (quicksort con comparar_con_prioridad); dentro de cada grupo se respeta
+ * el criterio elegido.
+ *   reprobadas: g_n bytes, reprobadas[i] = 1 si la materia i esta reprobada.
+ * Devuelve cuantos indices escribio, o -1 si hay error.
+ */
+EXPORT int ordenar_cursos_prioridad(int campo, int descendente,
+                                    const char *reprobadas, int *salida) {
+    if (g_cursos == NULL || reprobadas == NULL || campo < 0 || campo > 3) {
+        return -1;
+    }
+    for (int i = 0; i < g_n; i++) {
+        g_cursos[i].indice = i;
+    }
+    Curso *copia = copiar_arreglo_cursos(g_cursos, g_n);
+    if (copia == NULL) {
+        return -1;
+    }
+
+    Criterio criterio;
+    criterio.campo = (CampoCriterio)campo;
+    criterio.descendente = descendente ? 1 : 0;
+    configurar_criterios(&criterio, 1);
+    configurar_reprobadas(reprobadas, g_n);
+
+    quicksort(copia, g_n, comparar_con_prioridad);
+
+    configurar_reprobadas(NULL, 0);
 
     for (int k = 0; k < g_n; k++) {
         salida[k] = copia[k].indice;
@@ -281,14 +318,11 @@ static Curso *crear_restantes(const char *aprobadas, int *m, int **mapa_out) {
     return sub;
 }
 
-/* ------------------------------------------------------------------ */
-/* Seleccion voraz                                                     */
-/* ------------------------------------------------------------------ */
 
 /*
- * criterio: 0 = desbloquea (recomendado), 1 = solo creditos.
- * asignacion[i] = semestre (1, 2, ...) de la materia i, o 0 si ya estaba
- * aprobada. Devuelve semestres usados, o -1 si hay ciclo / falla memoria.
+criterio: 0 = desbloquea (recomendado), 1 = solo creditos.
+asignacion[i] = semestre (1, 2, ...) de la materia i, o 0 si ya estaba
+aprobada. Devuelve semestres usados, o -1 si hay ciclo / falla memoria.
  */
 EXPORT int plan_voraz(int criterio, int max_creditos, int max_materias,
                       const char *aprobadas, int *asignacion) {
@@ -331,20 +365,18 @@ EXPORT int plan_voraz(int criterio, int max_creditos, int max_materias,
     return semestres;
 }
 
-/* ------------------------------------------------------------------ */
-/* Backtracking                                                        */
-/* ------------------------------------------------------------------ */
+
 
 /*
- * Devuelve el codigo de plan_backtracking: 0 = hay plan, 1 = no se hallo plan
- * dentro del limite, -1 = ciclo o memoria, -2 = mas de 64 materias.
- *   asignacion[i] = semestre (1..) o 0 si ya estaba aprobada
- *   pasos[0]      = nodos de busqueda visitados
- *   info[0] = semestres del mejor plan
- *   info[1] = 1 si se corto por limite de pasos
- *   info[2] = 1 si el minimo quedo demostrado
- *   info[3] = semestres del primer plan hallado
- */
+Devuelve el codigo de plan_backtracking: 0 = hay plan, 1 = no se hallo plan
+dentro del limite, -1 = ciclo o memoria, -2 = mas de 64 materias.
+asignacion[i] = semestre (1..) o 0 si ya estaba aprobada
+pasos[0]      = nodos de busqueda visitados
+info[0] = semestres del mejor plan
+info[1] = 1 si se corto por limite de pasos
+info[2] = 1 si el minimo quedo demostrado
+info[3] = semestres del primer plan hallado
+*/
 EXPORT int plan_bt(const char *aprobadas, int max_creditos, int max_materias,
                    long long limite_pasos, int *asignacion, long long *pasos,
                    int *info) {

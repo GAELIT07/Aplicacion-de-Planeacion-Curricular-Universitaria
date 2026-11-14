@@ -67,6 +67,41 @@ int comparar_compuesto(const void *a, const void *b) {
     return strcmp(c1->nombre, c2->nombre);
 }
 
+// Comparar dando prioridad a las materias reprobadas (ver quicksort.h)
+static char *reprobadas_activas = NULL;
+static int num_reprobadas_activas = 0;
+
+void configurar_reprobadas(const char *reprobadas, int n) {
+    free(reprobadas_activas);
+    reprobadas_activas = NULL;
+    num_reprobadas_activas = 0;
+
+    if (reprobadas == NULL || n <= 0) {
+        return;
+    }
+    reprobadas_activas = (char *)malloc((size_t)n);
+    if (reprobadas_activas == NULL) {
+        return;   // sin memoria: se ordena sin prioridad
+    }
+    memcpy(reprobadas_activas, reprobadas, (size_t)n);
+    num_reprobadas_activas = n;
+}
+
+static int esta_reprobada(const Curso *c) {
+    return c->indice >= 0 && c->indice < num_reprobadas_activas &&
+           reprobadas_activas[c->indice] != 0;
+}
+
+int comparar_con_prioridad(const void *a, const void *b) {
+    int r1 = esta_reprobada((const Curso *)a);
+    int r2 = esta_reprobada((const Curso *)b);
+
+    if (r1 != r2) {
+        return r2 - r1;   // la reprobada (1) va antes que la que no lo esta (0)
+    }
+    return comparar_compuesto(a, b);
+}
+
 // QUICKSORT
 
 void quicksort(Curso *arreglo, int n,
@@ -114,51 +149,43 @@ void swap(Curso *a, Curso *b){
     *b = temp;
 }
 
-int main(int argc, char *argv[]) {
-    const char *ruta_archivo = (argc > 1) ? argv[1] : "cursos.txt";
+// QUICKSORT SOBRE INDICES
+// Ordena un arreglo de enteros (indices de cursos) con un comparador que
+// recibe un contexto. Lo usan voraz y backtracking para ordenar las materias
+// elegibles segun su prioridad. No es estable: el comparador debe resolver
+// los empates (los de voraz/backtracking terminan en el indice).
+// Pivote: elemento central (evita el peor caso con entradas ya ordenadas).
 
-    int n = 0;
-    Curso *cursos = leer_cursos_archivo(ruta_archivo, &n);
+static void quicksort_indices_rec(int *idx, int inicio, int fin,
+                                  ComparadorIdx cmp, const void *ctx) {
+    while (inicio < fin) {
+        int medio = inicio + (fin - inicio) / 2;
+        int t = idx[medio]; idx[medio] = idx[fin]; idx[fin] = t;   // pivote al final
+        int pivote = idx[fin];
 
-    if (cursos == NULL || n == 0) {
-        printf("No se pudieron leer cursos desde '%s'.\n", ruta_archivo);
-        printf("Verifica que el archivo exista y este en el mismo directorio, ");
-        printf("o pasa la ruta como argumento: %s <ruta_al_archivo>\n",
-               (argc > 0) ? argv[0] : "programa");
-        return 1;
+        int i = inicio - 1;
+        for (int j = inicio; j < fin; j++) {
+            if (cmp(idx[j], pivote, ctx) <= 0) {
+                i++;
+                t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+            }
+        }
+        t = idx[i + 1]; idx[i + 1] = idx[fin]; idx[fin] = t;
+        int p = i + 1;
+
+        // recursion en la mitad mas chica, iteracion en la otra (pila O(log n))
+        if (p - inicio < fin - p) {
+            quicksort_indices_rec(idx, inicio, p - 1, cmp, ctx);
+            inicio = p + 1;
+        } else {
+            quicksort_indices_rec(idx, p + 1, fin, cmp, ctx);
+            fin = p - 1;
+        }
     }
+}
 
-    printf("Se leyeron %d cursos desde '%s'\n", n, ruta_archivo);
-
-    // Mostrar datos originales tal como se leyeron del archivo
-    imprimir_cursos(cursos, n, "Lista Original (leida desde archivo)", cursos);
-
-    // Prueba Quicksort por dificultad
-    Curso *copia_qs = copiar_arreglo_cursos(cursos, n);
-    quicksort(copia_qs, n, comparar_dificultad);
-    imprimir_cursos(copia_qs, n, "Ordenado con Quicksort (por Dificultad)", cursos);
-    liberar_arreglo_cursos(copia_qs, n);
-
-    // Prueba Quicksort por semestre
-    Curso *copia_ms = copiar_arreglo_cursos(cursos, n);
-    quicksort(copia_ms, n, comparar_semestre);
-    imprimir_cursos(copia_ms, n, "Ordenado con Quicksort (por Semestre)", cursos);
-    liberar_arreglo_cursos(copia_ms, n);
-
-    // Prueba Quicksort por créditos
-    Curso *copia_qs_cred = copiar_arreglo_cursos(cursos, n);
-    quicksort(copia_qs_cred, n, comparar_creditos);
-    imprimir_cursos(copia_qs_cred, n, "Ordenado con Quicksort (por Créditos)", cursos);
-    liberar_arreglo_cursos(copia_qs_cred, n);
-
-    // Prueba Quicksort por nombre
-    Curso *copia_qs_nombre = copiar_arreglo_cursos(cursos, n);
-    quicksort(copia_qs_nombre, n, comparar_nombre);
-    imprimir_cursos(copia_qs_nombre, n, "Ordenado con Quicksort (por Nombre)", cursos);
-    liberar_arreglo_cursos(copia_qs_nombre, n);
-
-    // Liberar memoria original
-    liberar_arreglo_cursos(cursos, n);
-
-    return 0;
+void quicksort_indices(int *idx, int n, ComparadorIdx cmp, const void *ctx) {
+    if (n > 1) {
+        quicksort_indices_rec(idx, 0, n - 1, cmp, ctx);
+    }
 }
