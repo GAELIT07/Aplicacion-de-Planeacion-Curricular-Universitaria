@@ -1939,7 +1939,7 @@ def construir_menu():
     menu_lateral.configure(width=int(240 * min(ESCALA, 1.25)))
 
     tk.Label(
-        menu_lateral, text="Proyecto", font=fuente(23, "bold"),
+        menu_lateral, text="APLICACION", font=fuente(23, "bold"),
         bg=AZUL_OSCURO, fg=BLANCO
     ).pack(anchor="w", padx=22, pady=(28, 3))
     tk.Label(
